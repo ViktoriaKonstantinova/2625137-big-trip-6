@@ -3,13 +3,30 @@ import FilterView from '../view/filter-view.js';
 import SortView from '../view/sort-view.js';
 import EditFormView from '../view/edit-form-view.js';
 import PointView from '../view/point-view.js';
-import CreateFormView from '../view/create-form-view.js';
-const POINTS_COUNT = 3;
 
 export default class TripPresenter {
-  constructor() {
+  constructor(destinationsModel, offersModel, pointsModel) {
     this.filterContainer = document.querySelector('.trip-controls__filters');
     this.tripEventsContainer = document.querySelector('.trip-events');
+    this.destinationsModel = destinationsModel;
+    this.offersModel = offersModel;
+    this.pointsModel = pointsModel;
+  }
+
+  _getFullPoints() {
+    const points = this.pointsModel.getPoints();
+    return points.map((point) => {
+      const destination = this.destinationsModel.getDestinationById(point.destination);
+      const allOffersForType = this.offersModel.getOffersByType(point.type);
+      const selectedOffers = allOffersForType.filter((offer) =>
+        point.offers.includes(offer.id)
+      );
+      return {
+        ...point,
+        destination: destination,
+        offers: selectedOffers,
+      };
+    });
   }
 
   init() {
@@ -23,15 +40,20 @@ export default class TripPresenter {
     eventsList.classList.add('trip-events__list');
     this.tripEventsContainer.appendChild(eventsList);
 
-    const editFormView = new EditFormView();
-    render(editFormView, eventsList);
+    const fullPoints = this._getFullPoints();
+    fullPoints.sort((a, b) => new Date(a.date_from) - new Date(b.date_from));
 
-    for (let i = 0; i < POINTS_COUNT; i++) {
-      const pointView = new PointView();
-      render(pointView, eventsList);
+    if (fullPoints.length > 0) {
+      const editFormView = new EditFormView(fullPoints[0]);
+      render(editFormView, eventsList);
+    } else {
+      const createFormView = new EditFormView();
+      render(createFormView, eventsList);
     }
 
-    const createFormView = new CreateFormView();
-    render(createFormView, eventsList);
+    for (const point of fullPoints) {
+      const pointView = new PointView(point);
+      render(pointView, eventsList);
+    }
   }
 }

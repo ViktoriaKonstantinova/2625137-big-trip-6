@@ -1,4 +1,4 @@
-import { render, RenderPosition } from '../render.js';
+import { render, RenderPosition, replace } from '../framework/render.js';
 import FilterView from '../view/filter-view.js';
 import SortView from '../view/sort-view.js';
 import EditFormView from '../view/edit-form-view.js';
@@ -32,9 +32,15 @@ export default class TripPresenter {
   init() {
     const filterView = new FilterView();
     render(filterView, this.filterContainer);
+    if (filterView._restoreHandlers) {
+      filterView._restoreHandlers();
+    }
 
     const sortView = new SortView();
     render(sortView, this.tripEventsContainer, RenderPosition.AFTERBEGIN);
+    if (sortView._restoreHandlers) {
+      sortView._restoreHandlers();
+    }
 
     const eventsList = document.createElement('ul');
     eventsList.classList.add('trip-events__list');
@@ -43,17 +49,53 @@ export default class TripPresenter {
     const fullPoints = this._getFullPoints();
     fullPoints.sort((a, b) => new Date(a.date_from) - new Date(b.date_from));
 
-    if (fullPoints.length > 0) {
-      const editFormView = new EditFormView(fullPoints[0]);
-      render(editFormView, eventsList);
-    } else {
-      const createFormView = new EditFormView();
-      render(createFormView, eventsList);
+    for (const point of fullPoints) {
+      this._renderPoint(point, eventsList);
+    }
+  }
+
+  _renderPoint(point, container) {
+    const pointView = new PointView(point, () => {
+      this._replacePointToEditForm(point, pointView, container);
+    });
+    render(pointView, container);
+    pointView._restoreHandlers();
+  }
+
+  _replacePointToEditForm(point, oldPointView, container) {
+    const editFormView = new EditFormView(
+      point,
+      () => {
+        this._replaceEditFormToPoint(point, editFormView, container);
+      },
+      () => {
+        this._replaceEditFormToPoint(point, editFormView, container);
+      }
+    );
+
+    replace(editFormView, oldPointView);
+    editFormView._restoreHandlers();
+
+    const onEscKeyDown = (evt) => {
+      if (evt.key === 'Escape' || evt.key === 'Esc') {
+        evt.preventDefault();
+        this._replaceEditFormToPoint(point, editFormView, container);
+        document.removeEventListener('keydown', onEscKeyDown);
+      }
+    };
+    document.addEventListener('keydown', onEscKeyDown);
+    editFormView._onEscKeyDown = onEscKeyDown;
+  }
+
+  _replaceEditFormToPoint(point, oldEditFormView, container) {
+    if (oldEditFormView._onEscKeyDown) {
+      document.removeEventListener('keydown', oldEditFormView._onEscKeyDown);
     }
 
-    for (const point of fullPoints) {
-      const pointView = new PointView(point);
-      render(pointView, eventsList);
-    }
+    const newPointView = new PointView(point, () => {
+      this._replacePointToEditForm(point, newPointView, container);
+    });
+    replace(newPointView, oldEditFormView);
+    newPointView._restoreHandlers();
   }
 }

@@ -1,4 +1,4 @@
-import { createElement } from '../render.js';
+import AbstractView from '../framework/view/abstract-view.js';
 
 const getDefaultPoint = () => {
   const now = new Date();
@@ -136,25 +136,20 @@ const createEditFormTemplate = (point) => {
   </li>`;
 };
 
-export default class EditFormView {
-  constructor(point = null) {
+export default class EditFormView extends AbstractView {
+  constructor(point = null, onSubmit, onCancel) {
+    super();
     this.point = point || getDefaultPoint();
-    this.element = null;
+    this._onSubmit = onSubmit;
+    this._onCancel = onCancel;
   }
 
-  getTemplate() {
+  get template() {
     return createEditFormTemplate(this.point);
   }
 
-  getElement() {
-    if (!this.element) {
-      this.element = createElement(this.getTemplate());
-    }
-    return this.element;
-  }
-
-  removeElement() {
-    this.element = null;
+  _restoreHandlers() {
+    this.element.querySelector('form').addEventListener('submit', this._onSubmit);
+    this.element.querySelector('.event__rollup-btn').addEventListener('click', this._onCancel);
   }
 }
-

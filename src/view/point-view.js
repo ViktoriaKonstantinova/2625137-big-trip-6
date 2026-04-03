@@ -1,10 +1,10 @@
-import { createElement } from '../render.js';
+import AbstractView from '../framework/view/abstract-view.js';
 
 const getFormattedDate = (date) => new Date(date).toLocaleDateString('en-GB', { month: 'short', day: 'numeric' }).toUpperCase();
 
 const getTimeFromISO = (isoString) => new Date(isoString).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 
-const getDuration = () => '30M'; // временная заглушка
+const getDuration = () => '30M';
 
 const createPointTemplate = (point) => {
   const {
@@ -63,24 +63,20 @@ const createPointTemplate = (point) => {
   </li>`;
 };
 
-export default class PointView {
-  constructor(point) {
+export default class PointView extends AbstractView {
+  constructor(point, onEditClick) {
+    super();
     this.point = point;
-    this.element = null;
+    this._onEditClick = onEditClick;
   }
 
-  getTemplate() {
+  get template() {
     return createPointTemplate(this.point);
   }
 
-  getElement() {
-    if (!this.element) {
-      this.element = createElement(this.getTemplate());
-    }
-    return this.element;
-  }
-
-  removeElement() {
-    this.element = null;
+  _restoreHandlers() {
+    this.element.querySelector('.event__rollup-btn')
+      .addEventListener('click', this._onEditClick);
   }
 }
+

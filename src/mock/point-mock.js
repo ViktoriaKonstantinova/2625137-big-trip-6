@@ -1,4 +1,4 @@
-import { getRandomNumber, getRandomItems } from '../utils.js';
+import { getRandomNumber, getRandomItems } from '../utils/utils.js';
 
 const rawPoints = [
   {

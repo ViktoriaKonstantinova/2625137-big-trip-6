@@ -1,33 +1,44 @@
 import AbstractView from '../framework/view/abstract-view.js';
 
-function createSortTemplate() {
-  return `<form class="trip-events__trip-sort  trip-sort" action="#" method="get">
-    <div class="trip-sort__item  trip-sort__item--day">
-      <input id="sort-day" class="trip-sort__input  visually-hidden" type="radio" name="trip-sort" value="sort-day" checked>
-      <label class="trip-sort__btn" for="sort-day">Day</label>
-    </div>
-    <div class="trip-sort__item  trip-sort__item--event">
-      <input id="sort-event" class="trip-sort__input  visually-hidden" type="radio" name="trip-sort" value="sort-event" disabled>
-      <label class="trip-sort__btn" for="sort-event">Event</label>
-    </div>
-    <div class="trip-sort__item  trip-sort__item--time">
-      <input id="sort-time" class="trip-sort__input  visually-hidden" type="radio" name="trip-sort" value="sort-time">
-      <label class="trip-sort__btn" for="sort-time">Time</label>
-    </div>
-    <div class="trip-sort__item  trip-sort__item--price">
-      <input id="sort-price" class="trip-sort__input  visually-hidden" type="radio" name="trip-sort" value="sort-price">
-      <label class="trip-sort__btn" for="sort-price">Price</label>
-    </div>
-    <div class="trip-sort__item  trip-sort__item--offer">
-      <input id="sort-offer" class="trip-sort__input  visually-hidden" type="radio" name="trip-sort" value="sort-offer" disabled>
-      <label class="trip-sort__btn" for="sort-offer">Offers</label>
-    </div>
+const createSortTemplate = (currentSort) => {
+  const sorts = [
+    { name: 'day', disabled: false },
+    { name: 'event', disabled: true },
+    { name: 'time', disabled: false },
+    { name: 'price', disabled: false },
+    { name: 'offer', disabled: true }
+  ];
+
+  return `<form class="trip-events__trip-sort trip-sort" action="#" method="get">
+    ${sorts.map((sort) => `
+      <div class="trip-sort__item trip-sort__item--${sort.name}">
+        <input id="sort-${sort.name}" class="trip-sort__input visually-hidden" type="radio" name="trip-sort" value="sort-${sort.name}" ${sort.name === currentSort ? 'checked' : ''} ${sort.disabled ? 'disabled' : ''}>
+        <label class="trip-sort__btn" for="sort-${sort.name}">${sort.name.charAt(0).toUpperCase() + sort.name.slice(1)}</label>
+      </div>
+    `).join('')}
   </form>`;
-}
+};
 
 export default class SortView extends AbstractView {
+  #currentSort = null;
+  #onSortChange = null;
+
+  constructor(currentSort, onSortChange) {
+    super();
+    this.#currentSort = currentSort;
+    this.#onSortChange = onSortChange;
+  }
+
   get template() {
-    return createSortTemplate();
+    return createSortTemplate(this.#currentSort);
+  }
+
+  _restoreHandlers() {
+    this.element.querySelectorAll('.trip-sort__input:not(:disabled)').forEach((input) => {
+      input.addEventListener('change', () => {
+        const sortType = input.value.replace('sort-', '');
+        this.#onSortChange(sortType);
+      });
+    });
   }
 }
-

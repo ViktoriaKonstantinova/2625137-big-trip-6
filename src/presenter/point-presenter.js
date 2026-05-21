@@ -36,11 +36,17 @@ export default class PointPresenter {
   }
 
   #createEditFormView() {
-    this.#editFormView = new EditFormView(this.#point, () => {
-      this.#closeEditForm();
-    }, () => {
-      this.#closeEditForm();
-    });
+    this.#editFormView = new EditFormView(
+      this.#point,
+      this.#destinationsModel,
+      this.#offersModel,
+      () => {
+        this.#closeEditForm();
+      },
+      () => {
+        this.#closeEditForm();
+      }
+    );
   }
 
   #openEditForm() {

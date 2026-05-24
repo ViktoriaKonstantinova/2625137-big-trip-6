@@ -1,4 +1,7 @@
 import AbstractStatefulView from '../framework/view/abstract-stateful-view.js';
+import flatpickr from 'flatpickr';
+import 'flatpickr/dist/flatpickr.min.css';
+import { formatDate } from '../utils/points-utils.js';
 
 const getDefaultPoint = () => ({
   id: null,
@@ -10,16 +13,6 @@ const getDefaultPoint = () => ({
   offers: [],
   isFavorite: false,
 });
-
-const formatDateTimeForInput = (isoString) => {
-  const date = new Date(isoString);
-  const day = String(date.getDate()).padStart(2, '0');
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const year = String(date.getFullYear()).slice(2);
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-  return `${day}/${month}/${year} ${hours}:${minutes}`;
-};
 
 const createTypeOptions = (currentType, types) => types.map((type) => `
   <div class="event__type-item">
@@ -53,6 +46,9 @@ const createEditFormTemplate = (state, types, availableOffers, destinationDetail
     offers: selectedOffers,
   } = state;
 
+  const formattedDateFrom = formatDate(dateFrom, 'd/m/y H:i');
+  const formattedDateTo = formatDate(dateTo, 'd/m/y H:i');
+
   const destinationName = destination?.name || '';
   const destinationDescription = destinationDetails?.description || '';
   const destinationPictures = destinationDetails?.pictures || [];
@@ -60,7 +56,7 @@ const createEditFormTemplate = (state, types, availableOffers, destinationDetail
   const typeOptionsHtml = createTypeOptions(type, types);
   const offersHtml = availableOffers.length
     ? createOffersHtml(availableOffers, selectedOffers)
-    : 'No offers available';
+    : '<p class="event__offers-empty">No offers available</p>';
   const destinationPhotosHtml = createDestinationPhotosHtml(destinationPictures);
 
   return `<li class="trip-events__item">
@@ -83,17 +79,15 @@ const createEditFormTemplate = (state, types, availableOffers, destinationDetail
         <div class="event__field-group event__field-group--destination">
           <label class="event__label event__type-output" for="event-destination-1">${type}</label>
           <input class="event__input event__input--destination" id="event-destination-1" type="text" name="event-destination" value="${destinationName}" list="destination-list-1" autocomplete="off">
-          <datalist id="destination-list-1">
-            ${types.map((t) => `<option value="${t}"></option>`).join('')}
-          </datalist>
+          <datalist id="destination-list-1"></datalist>
         </div>
 
         <div class="event__field-group event__field-group--time">
           <label class="visually-hidden" for="event-start-time-1">From</label>
-          <input class="event__input event__input--time" id="event-start-time-1" type="text" name="event-start-time" value="${formatDateTimeForInput(dateFrom)}">
+          <input class="event__input event__input--time" id="event-start-time-1" type="text" name="event-start-time" value="${formattedDateFrom}" autocomplete="off" readonly>
           &mdash;
           <label class="visually-hidden" for="event-end-time-1">To</label>
-          <input class="event__input event__input--time" id="event-end-time-1" type="text" name="event-end-time" value="${formatDateTimeForInput(dateTo)}">
+          <input class="event__input event__input--time" id="event-end-time-1" type="text" name="event-end-time" value="${formattedDateTo}" autocomplete="off" readonly>
         </div>
 
         <div class="event__field-group event__field-group--price">
@@ -111,12 +105,15 @@ const createEditFormTemplate = (state, types, availableOffers, destinationDetail
         </button>
       </header>
       <section class="event__details">
+        ${availableOffers.length ? `
         <section class="event__section event__section--offers">
           <h3 class="event__section-title event__section-title--offers">Offers</h3>
           <div class="event__available-offers">
             ${offersHtml}
           </div>
         </section>
+        ` : ''}
+        ${destinationDetails ? `
         <section class="event__section event__section--destination">
           <h3 class="event__section-title event__section-title--destination">Destination</h3>
           <p class="event__destination-description">${destinationDescription}</p>
@@ -126,6 +123,7 @@ const createEditFormTemplate = (state, types, availableOffers, destinationDetail
             </div>
           </div>
         </section>
+        ` : ''}
       </section>
     </form>
   </li>`;
@@ -137,6 +135,8 @@ export default class EditFormView extends AbstractStatefulView {
   #onSubmit = null;
   #onCancel = null;
   #types = ['taxi', 'bus', 'train', 'ship', 'drive', 'flight', 'check-in', 'sightseeing', 'restaurant'];
+  #flatpickrStart = null;
+  #flatpickrEnd = null;
 
   constructor(point, destinationsModel, offersModel, onSubmit, onCancel) {
     super();
@@ -193,15 +193,10 @@ export default class EditFormView extends AbstractStatefulView {
     });
 
     priceInput.addEventListener('change', () => {
-      this.updateElement({ basePrice: parseInt(priceInput.value, 10) });
-    });
-
-    startTimeInput.addEventListener('change', () => {
-      this.updateElement({ dateFrom: new Date(startTimeInput.value).toISOString() });
-    });
-
-    endTimeInput.addEventListener('change', () => {
-      this.updateElement({ dateTo: new Date(endTimeInput.value).toISOString() });
+      const newPrice = parseInt(priceInput.value, 10);
+      if (!isNaN(newPrice)) {
+        this.updateElement({ basePrice: newPrice });
+      }
     });
 
     offersCheckboxes.forEach((checkbox) => {
@@ -215,6 +210,49 @@ export default class EditFormView extends AbstractStatefulView {
         }
         this.updateElement({ offers: newOffers });
       });
+    });
+
+    this.#initFlatpickr(startTimeInput, endTimeInput);
+  }
+
+  #initFlatpickr(startInput, endInput) {
+    if (this.#flatpickrStart) {
+      this.#flatpickrStart.destroy();
+    }
+    if (this.#flatpickrEnd) {
+      this.#flatpickrEnd.destroy();
+    }
+
+    const commonConfig = {
+      dateFormat: 'd/m/y H:i',
+      enableTime: true,
+      'time_24hr': true,
+      locale: { firstDayOfWeek: 1 },
+      onClose: (selectedDates, dateStr, instance) => {
+        if (selectedDates.length === 0) {
+          return;
+        }
+        if (instance.element.id === 'event-start-time-1') {
+          this.updateElement({ dateFrom: selectedDates[0].toISOString() });
+          if (this.#flatpickrEnd) {
+            this.#flatpickrEnd.set('minDate', selectedDates[0]);
+          }
+        } else {
+          this.updateElement({ dateTo: selectedDates[0].toISOString() });
+        }
+      },
+    };
+
+    this.#flatpickrStart = flatpickr(startInput, {
+      ...commonConfig,
+      defaultDate: this._state.dateFrom,
+      minDate: 'today',
+    });
+
+    this.#flatpickrEnd = flatpickr(endInput, {
+      ...commonConfig,
+      defaultDate: this._state.dateTo,
+      minDate: this._state.dateFrom,
     });
   }
 

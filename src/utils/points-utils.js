@@ -1,20 +1,73 @@
-function isFuturePoint(point) {
-  const now = new Date();
-  const pointDate = new Date(point.dateFrom);
-  return pointDate > now;
+import dayjs from 'dayjs';
+import duration from 'dayjs/plugin/duration.js';
+
+dayjs.extend(duration);
+
+function toDate(date) {
+  if (date instanceof Date) {
+    return date;
+  }
+  if (typeof date === 'string') {
+    return new Date(date);
+  }
+  return new Date(date);
 }
 
-function isExpiredPoint(point) {
-  const now = new Date();
-  const pointDate = new Date(point.dateTo);
-  return pointDate < now;
+export function formatDate(date, format) {
+  const d = toDate(date);
+  if (isNaN(d.getTime())) {
+    return '';
+  }
+  if (format === 'd/m/y H:i') {
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = String(d.getFullYear()).slice(-2);
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    return `${day}/${month}/${year} ${hours}:${minutes}`;
+  }
+  if (format === 'MMM D') {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return `${months[d.getMonth()]} ${d.getDate()}`;
+  }
+  if (format === 'HH:mm') {
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  }
+  return dayjs(d).format(format);
 }
 
-function isActualPoint(point) {
-  const now = new Date();
-  const startDate = new Date(point.dateFrom);
-  const endDate = new Date(point.dateTo);
-  return startDate <= now && endDate >= now;
+export function formatDuration(dateFrom, dateTo) {
+  const from = toDate(dateFrom);
+  const to = toDate(dateTo);
+  const diff = to - from;
+  if (diff < 0) {
+    return '0M';
+  }
+  const seconds = Math.floor(diff / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+  const remainHours = hours % 24;
+  const remainMinutes = minutes % 60;
+
+  if (days > 0) {
+    return `${days}D ${String(remainHours).padStart(2, '0')}H ${String(remainMinutes).padStart(2, '0')}M`;
+  }
+  if (hours > 0) {
+    return `${String(hours).padStart(2, '0')}H ${String(remainMinutes).padStart(2, '0')}M`;
+  }
+  return `${minutes}M`;
 }
 
-export { isFuturePoint, isExpiredPoint, isActualPoint };
+export function isFuturePoint(point) {
+  return dayjs(toDate(point.dateFrom)).isAfter(dayjs());
+}
+
+export function isExpiredPoint(point) {
+  return dayjs(toDate(point.dateTo)).isBefore(dayjs());
+}
+
+export function isActualPoint(point) {
+  const now = dayjs();
+  return dayjs(toDate(point.dateFrom)).isBefore(now) && dayjs(toDate(point.dateTo)).isAfter(now);
+}

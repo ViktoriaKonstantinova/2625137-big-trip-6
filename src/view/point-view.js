@@ -1,8 +1,5 @@
 import AbstractView from '../framework/view/abstract-view.js';
-
-const getFormattedDate = (date) => new Date(date).toLocaleDateString('en-GB', { month: 'short', day: 'numeric' }).toUpperCase();
-const getTimeFromISO = (isoString) => new Date(isoString).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-const getDuration = () => '30M';
+import { formatDate, formatDuration } from '../utils/points-utils.js';
 
 const createPointTemplate = (point) => {
   const {
@@ -17,6 +14,10 @@ const createPointTemplate = (point) => {
 
   const destinationName = destination ? destination.name : '';
   const favoriteClass = isFavorite ? 'event__favorite-btn--active' : '';
+  const formattedDate = formatDate(dateFrom, 'MMM D').toUpperCase();
+  const startTime = formatDate(dateFrom, 'HH:mm');
+  const endTime = formatDate(dateTo, 'HH:mm');
+  const duration = formatDuration(dateFrom, dateTo);
 
   const offersHtml = offers.map((offer) => `
     <li class="event__offer">
@@ -28,18 +29,18 @@ const createPointTemplate = (point) => {
 
   return `<li class="trip-events__item">
     <div class="event">
-      <time class="event__date" datetime="${dateFrom.slice(0, 10)}">${getFormattedDate(dateFrom)}</time>
+      <time class="event__date" datetime="${dateFrom.slice(0, 10)}">${formattedDate}</time>
       <div class="event__type">
         <img class="event__type-icon" width="42" height="42" src="img/icons/${type}.png" alt="Event type icon">
       </div>
       <h3 class="event__title">${type} ${destinationName}</h3>
       <div class="event__schedule">
         <p class="event__time">
-          <time class="event__start-time" datetime="${dateFrom}">${getTimeFromISO(dateFrom)}</time>
+          <time class="event__start-time" datetime="${dateFrom}">${startTime}</time>
           &mdash;
-          <time class="event__end-time" datetime="${dateTo}">${getTimeFromISO(dateTo)}</time>
+          <time class="event__end-time" datetime="${dateTo}">${endTime}</time>
         </p>
-        <p class="event__duration">${getDuration()}</p>
+        <p class="event__duration">${duration}</p>
       </div>
       <p class="event__price">
         &euro;&nbsp;<span class="event__price-value">${basePrice}</span>
@@ -74,7 +75,9 @@ export default class PointView extends AbstractView {
   }
 
   _restoreHandlers() {
-    this.element.querySelector('.event__rollup-btn').addEventListener('click', this._onEditClick);
-    this.element.querySelector('.event__favorite-btn').addEventListener('click', this._onFavoriteClick);
+    this.element.querySelector('.event__rollup-btn')
+      .addEventListener('click', this._onEditClick);
+    this.element.querySelector('.event__favorite-btn')
+      .addEventListener('click', this._onFavoriteClick);
   }
 }

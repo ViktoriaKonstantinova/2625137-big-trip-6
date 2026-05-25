@@ -1,18 +1,19 @@
-import { offers } from '../mock/offer-mock.js';
+import Observable from '../framework/observable.js';
 
-class OffersModel {
-  constructor() {
-    this._offers = offers;
+export default class OffersModel extends Observable {
+  #offers = [];
+
+  setOffers(offers) {
+    this.#offers = offers;
+    this._notify('MAJOR', null);
   }
 
   getOffers() {
-    return this._offers;
+    return this.#offers;
   }
 
   getOffersByType(type) {
-    const offerGroup = this._offers.find((offer) => offer.type === type);
+    const offerGroup = this.#offers.find((group) => group.type === type);
     return offerGroup ? offerGroup.offers : [];
   }
 }
-
-export default OffersModel;

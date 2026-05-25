@@ -1,17 +1,18 @@
-import { destinations } from '../mock/destination-mock.js';
+import Observable from '../framework/observable.js';
 
-class DestinationsModel {
-  constructor() {
-    this._destinations = destinations;
+export default class DestinationsModel extends Observable {
+  #destinations = [];
+
+  setDestinations(destinations) {
+    this.#destinations = destinations;
+    this._notify('MAJOR', null);
   }
 
   getDestinations() {
-    return this._destinations;
+    return this.#destinations;
   }
 
   getDestinationById(id) {
-    return this._destinations.find((dest) => dest.id === id) || null;
+    return this.#destinations.find((dest) => dest.id === id) || null;
   }
 }
-
-export default DestinationsModel;

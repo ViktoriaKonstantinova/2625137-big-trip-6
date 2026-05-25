@@ -36,6 +36,8 @@ export default class TripPresenter {
 
   init() {
     this.#pointsModel.addObserver(() => this.#renderBoard());
+    this.#destinationsModel.addObserver(() => this.#renderBoard());
+    this.#offersModel.addObserver(() => this.#renderBoard());
     this.#filterModel.addObserver(() => {
       this.#currentSort = 'day';
       this.#renderBoard();
@@ -134,7 +136,7 @@ export default class TripPresenter {
     this.#pointPresenters.set(point.id, pointPresenter);
   }
 
-  #handlePointChange(updatedPoint) {
+  async #handlePointChange(updatedPoint) {
     const rawPoint = {
       id: updatedPoint.id,
       type: updatedPoint.type,
@@ -146,14 +148,28 @@ export default class TripPresenter {
       isFavorite: updatedPoint.isFavorite,
     };
     if (updatedPoint.isDeleted) {
-      this.#pointsModel.deletePoint(updatedPoint.id);
+      try {
+        await this.#pointsModel.deletePoint(updatedPoint.id);
+      } catch {
+        const pointToShake = this.#pointPresenters.get(updatedPoint.id);
+        if (pointToShake) {
+          pointToShake.shake();
+        }
+      }
     } else {
-      this.#pointsModel.updatePoint(rawPoint);
+      try {
+        await this.#pointsModel.updatePoint(rawPoint);
+      } catch {
+        const pointToShake = this.#pointPresenters.get(updatedPoint.id);
+        if (pointToShake) {
+          pointToShake.shake();
+        }
+      }
     }
-    const presenter = this.#pointPresenters.get(updatedPoint.id);
-    if (presenter) {
+    const updatedPresenter = this.#pointPresenters.get(updatedPoint.id);
+    if (updatedPresenter) {
       const fullPoint = this.#getFullPoints().find((p) => p.id === updatedPoint.id);
-      presenter.update(fullPoint);
+      updatedPresenter.update(fullPoint);
     }
   }
 
@@ -195,20 +211,26 @@ export default class TripPresenter {
     const createForm = new CreateFormView(
       this.#destinationsModel,
       this.#offersModel,
-      (newPoint) => {
-        this.#pointsModel.addPoint({
-          id: Date.now().toString(),
-          type: newPoint.type,
-          basePrice: newPoint.basePrice,
-          dateFrom: newPoint.dateFrom,
-          dateTo: newPoint.dateTo,
-          destination: newPoint.destination.id,
-          offers: newPoint.offers,
-          isFavorite: false,
-        });
-        this.#isCreating = false;
-        this.#newEventButton.disabled = false;
-        this.#renderBoard();
+      async (newPoint) => {
+        try {
+          const rawPoint = {
+            type: newPoint.type,
+            basePrice: newPoint.basePrice,
+            dateFrom: newPoint.dateFrom,
+            dateTo: newPoint.dateTo,
+            destination: newPoint.destination.id,
+            offers: newPoint.offers,
+            isFavorite: false,
+          };
+          await this.#pointsModel.addPoint(rawPoint);
+          this.#isCreating = false;
+          this.#newEventButton.disabled = false;
+        } catch {
+          const formComponent = this.#eventsList.querySelector('.event--edit');
+          if (formComponent && formComponent.__component) {
+            formComponent.__component.shake();
+          }
+        }
       },
       () => {
         this.#isCreating = false;

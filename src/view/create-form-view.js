@@ -1,4 +1,7 @@
 import AbstractStatefulView from '../framework/view/abstract-stateful-view.js';
+import flatpickr from 'flatpickr';
+import 'flatpickr/dist/flatpickr.min.css';
+import { formatDate } from '../utils/points-utils.js';
 
 const getEmptyPoint = () => ({
   id: null,
@@ -10,16 +13,6 @@ const getEmptyPoint = () => ({
   offers: [],
   isFavorite: false,
 });
-
-const formatDateTimeForInput = (isoString) => {
-  const date = new Date(isoString);
-  const day = String(date.getDate()).padStart(2, '0');
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const year = String(date.getFullYear()).slice(2);
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-  return `${day}/${month}/${year} ${hours}:${minutes}`;
-};
 
 const createTypeOptions = (currentType, types) => types.map((type) => `
   <div class="event__type-item">
@@ -43,7 +36,11 @@ const createDestinationPhotosHtml = (pictures) => pictures.map((pic) => `
   <img class="event__photo" src="${pic.src}" alt="${pic.description}">
 `).join('');
 
-const createCreateFormTemplate = (state, types, availableOffers, destinationDetails) => {
+const createDestinationOptions = (destinations) => destinations.map((dest) => `
+  <option value="${dest.name}"></option>
+`).join('');
+
+const createCreateFormTemplate = (state, types, availableOffers, destinationDetails, allDestinations) => {
   const {
     type,
     basePrice,
@@ -53,6 +50,9 @@ const createCreateFormTemplate = (state, types, availableOffers, destinationDeta
     offers: selectedOffers,
   } = state;
 
+  const formattedDateFrom = formatDate(dateFrom, 'd/m/y H:i');
+  const formattedDateTo = formatDate(dateTo, 'd/m/y H:i');
+
   const destinationName = destination?.name || '';
   const destinationDescription = destinationDetails?.description || '';
   const destinationPictures = destinationDetails?.pictures || [];
@@ -60,8 +60,9 @@ const createCreateFormTemplate = (state, types, availableOffers, destinationDeta
   const typeOptionsHtml = createTypeOptions(type, types);
   const offersHtml = availableOffers.length
     ? createOffersHtml(availableOffers, selectedOffers)
-    : 'No offers available';
+    : '<p class="event__offers-empty">No offers available</p>';
   const destinationPhotosHtml = createDestinationPhotosHtml(destinationPictures);
+  const destinationOptionsHtml = createDestinationOptions(allDestinations);
 
   return `<li class="trip-events__item">
     <form class="event event--edit" action="#" method="post">
@@ -84,16 +85,16 @@ const createCreateFormTemplate = (state, types, availableOffers, destinationDeta
           <label class="event__label event__type-output" for="event-destination-1">${type}</label>
           <input class="event__input event__input--destination" id="event-destination-1" type="text" name="event-destination" value="${destinationName}" list="destination-list-1" autocomplete="off">
           <datalist id="destination-list-1">
-            ${types.map((t) => `<option value="${t}"></option>`).join('')}
+            ${destinationOptionsHtml}
           </datalist>
         </div>
 
         <div class="event__field-group event__field-group--time">
           <label class="visually-hidden" for="event-start-time-1">From</label>
-          <input class="event__input event__input--time" id="event-start-time-1" type="text" name="event-start-time" value="${formatDateTimeForInput(dateFrom)}">
+          <input class="event__input event__input--time" id="event-start-time-1" type="text" name="event-start-time" value="${formattedDateFrom}" autocomplete="off" readonly>
           &mdash;
           <label class="visually-hidden" for="event-end-time-1">To</label>
-          <input class="event__input event__input--time" id="event-end-time-1" type="text" name="event-end-time" value="${formatDateTimeForInput(dateTo)}">
+          <input class="event__input event__input--time" id="event-end-time-1" type="text" name="event-end-time" value="${formattedDateTo}" autocomplete="off" readonly>
         </div>
 
         <div class="event__field-group event__field-group--price">
@@ -111,12 +112,15 @@ const createCreateFormTemplate = (state, types, availableOffers, destinationDeta
         </button>
       </header>
       <section class="event__details">
+        ${availableOffers.length ? `
         <section class="event__section event__section--offers">
           <h3 class="event__section-title event__section-title--offers">Offers</h3>
           <div class="event__available-offers">
             ${offersHtml}
           </div>
         </section>
+        ` : ''}
+        ${destinationDetails ? `
         <section class="event__section event__section--destination">
           <h3 class="event__section-title event__section-title--destination">Destination</h3>
           <p class="event__destination-description">${destinationDescription}</p>
@@ -126,6 +130,7 @@ const createCreateFormTemplate = (state, types, availableOffers, destinationDeta
             </div>
           </div>
         </section>
+        ` : ''}
       </section>
     </form>
   </li>`;
@@ -137,6 +142,9 @@ export default class CreateFormView extends AbstractStatefulView {
   #onSubmit = null;
   #onCancel = null;
   #types = ['taxi', 'bus', 'train', 'ship', 'drive', 'flight', 'check-in', 'sightseeing', 'restaurant'];
+  #flatpickrStart = null;
+  #flatpickrEnd = null;
+  #onEscKeyDown = null;
 
   constructor(destinationsModel, offersModel, onSubmit, onCancel) {
     super();
@@ -152,13 +160,15 @@ export default class CreateFormView extends AbstractStatefulView {
     const destinationDetails = this._state.destination
       ? this.#destinationsModel.getDestinationById(this._state.destination.id)
       : null;
-    return createCreateFormTemplate(this._state, this.#types, availableOffers, destinationDetails);
+    const allDestinations = this.#destinationsModel.getDestinations();
+    return createCreateFormTemplate(this._state, this.#types, availableOffers, destinationDetails, allDestinations);
   }
 
   _restoreHandlers() {
     const element = this.element;
     const form = element.querySelector('form');
     const rollupBtn = element.querySelector('.event__rollup-btn');
+    const cancelBtn = element.querySelector('.event__reset-btn');
     const typeInputs = element.querySelectorAll('.event__type-input');
     const destinationInput = element.querySelector('.event__input--destination');
     const priceInput = element.querySelector('.event__input--price');
@@ -168,10 +178,23 @@ export default class CreateFormView extends AbstractStatefulView {
 
     form.addEventListener('submit', (evt) => {
       evt.preventDefault();
+      if (!this._state.destination) {
+        this.shake();
+        return;
+      }
+      if (this._state.basePrice <= 0) {
+        this.shake();
+        return;
+      }
       this.#onSubmit(this._state);
     });
 
     rollupBtn.addEventListener('click', (evt) => {
+      evt.preventDefault();
+      this.#onCancel();
+    });
+
+    cancelBtn.addEventListener('click', (evt) => {
       evt.preventDefault();
       this.#onCancel();
     });
@@ -186,22 +209,20 @@ export default class CreateFormView extends AbstractStatefulView {
 
     destinationInput.addEventListener('change', () => {
       const destinationName = destinationInput.value;
-      const destination = this.#destinationsModel.getAllDestinations().find((d) => d.name === destinationName);
+      const allDestinations = this.#destinationsModel.getDestinations();
+      const destination = allDestinations.find((d) => d.name === destinationName);
       if (destination) {
         this.#handleDestinationChange(destination);
+      } else {
+        this.updateElement({ destination: null });
       }
     });
 
     priceInput.addEventListener('change', () => {
-      this.updateElement({ basePrice: parseInt(priceInput.value, 10) });
-    });
-
-    startTimeInput.addEventListener('change', () => {
-      this.updateElement({ dateFrom: new Date(startTimeInput.value).toISOString() });
-    });
-
-    endTimeInput.addEventListener('change', () => {
-      this.updateElement({ dateTo: new Date(endTimeInput.value).toISOString() });
+      const newPrice = parseInt(priceInput.value, 10);
+      if (!isNaN(newPrice)) {
+        this.updateElement({ basePrice: newPrice });
+      }
     });
 
     offersCheckboxes.forEach((checkbox) => {
@@ -216,6 +237,67 @@ export default class CreateFormView extends AbstractStatefulView {
         this.updateElement({ offers: newOffers });
       });
     });
+
+    this.#initFlatpickr(startTimeInput, endTimeInput);
+    this.#addEscHandler();
+  }
+
+  #initFlatpickr(startInput, endInput) {
+    if (this.#flatpickrStart) {
+      this.#flatpickrStart.destroy();
+    }
+    if (this.#flatpickrEnd) {
+      this.#flatpickrEnd.destroy();
+    }
+
+    const commonConfig = {
+      dateFormat: 'd/m/y H:i',
+      enableTime: true,
+      'time_24hr': true,
+      locale: { firstDayOfWeek: 1 },
+      onClose: (selectedDates, dateStr, instance) => {
+        if (selectedDates.length === 0) {
+          return;
+        }
+        if (instance.element.id === 'event-start-time-1') {
+          this.updateElement({ dateFrom: selectedDates[0].toISOString() });
+          if (this.#flatpickrEnd) {
+            this.#flatpickrEnd.set('minDate', selectedDates[0]);
+          }
+        } else {
+          this.updateElement({ dateTo: selectedDates[0].toISOString() });
+        }
+      },
+    };
+
+    this.#flatpickrStart = flatpickr(startInput, {
+      ...commonConfig,
+      defaultDate: this._state.dateFrom,
+      minDate: 'today',
+    });
+
+    this.#flatpickrEnd = flatpickr(endInput, {
+      ...commonConfig,
+      defaultDate: this._state.dateTo,
+      minDate: this._state.dateFrom,
+    });
+  }
+
+  #addEscHandler() {
+    this.#onEscKeyDown = (evt) => {
+      if (evt.key === 'Escape' || evt.key === 'Esc') {
+        evt.preventDefault();
+        this.#onCancel();
+      }
+    };
+    document.addEventListener('keydown', this.#onEscKeyDown);
+  }
+
+  #removeEscHandler() {
+    if (this.#onEscKeyDown) {
+      document.removeEventListener('keydown', this.#onEscKeyDown);
+      this.#onEscKeyDown = null;
+    }
   }
 
   #handleTypeChange(newType) {

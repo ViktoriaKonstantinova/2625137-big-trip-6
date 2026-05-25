@@ -19,7 +19,7 @@ const filterModel = new FilterModel();
 const filterContainer = document.querySelector('.trip-controls__filters');
 const tripEventsContainer = document.querySelector('.trip-events');
 
-const filterPresenter = new FilterPresenter(filterContainer, filterModel);
+const filterPresenter = new FilterPresenter(filterContainer, filterModel, pointsModel);
 const tripPresenter = new TripPresenter(tripEventsContainer, destinationsModel, offersModel, pointsModel, filterModel);
 
 const showLoading = () => {

@@ -25,6 +25,13 @@ export default class TripPresenter {
   #isCreating = false;
   #newEventButton = null;
 
+  #tripInfo = {
+    route: '',
+    startDate: '',
+    endDate: '',
+    totalCost: 0,
+  };
+
   constructor(tripEventsContainer, destinationsModel, offersModel, pointsModel, filterModel) {
     this.#tripEventsContainer = tripEventsContainer;
     this.#destinationsModel = destinationsModel;
@@ -35,15 +42,92 @@ export default class TripPresenter {
   }
 
   init() {
-    this.#pointsModel.addObserver(() => this.#renderBoard());
-    this.#destinationsModel.addObserver(() => this.#renderBoard());
-    this.#offersModel.addObserver(() => this.#renderBoard());
+    this.#pointsModel.addObserver(() => this.#updateTripInfoAndRender());
+    this.#destinationsModel.addObserver(() => this.#updateTripInfoAndRender());
+    this.#offersModel.addObserver(() => this.#updateTripInfoAndRender());
     this.#filterModel.addObserver(() => {
       this.#currentSort = 'day';
-      this.#renderBoard();
+      this.#updateTripInfoAndRender();
     });
     this.#newEventButton.addEventListener('click', () => this.#handleNewEventClick());
+    this.#updateTripInfoAndRender();
+  }
+
+  #updateTripInfoAndRender() {
+    this.#updateTripInfo();
+    this.#renderTripInfo();
     this.#renderBoard();
+  }
+
+  #updateTripInfo() {
+    const points = this.#pointsModel.getPoints();
+    if (points.length === 0) {
+      this.#tripInfo = { route: '', startDate: '', endDate: '', totalCost: 0 };
+      return;
+    }
+
+    const sortedPoints = [...points].sort((a, b) => new Date(a.dateFrom) - new Date(b.dateFrom));
+    const firstPoint = sortedPoints[0];
+    const lastPoint = sortedPoints[sortedPoints.length - 1];
+
+    const destinations = sortedPoints.map((point) => {
+      const dest = this.#destinationsModel.getDestinationById(point.destination);
+      return dest ? dest.name : '';
+    }).filter((name) => name);
+
+    let route = '';
+    if (destinations.length === 0) {
+      route = '';
+    } else if (destinations.length <= 3) {
+      route = destinations.join(' — ');
+    } else {
+      route = `${destinations[0]} — ... — ${destinations[destinations.length - 1]}`;
+    }
+
+    const startDate = new Date(firstPoint.dateFrom);
+    const endDate = new Date(lastPoint.dateTo);
+    const startMonth = startDate.toLocaleString('en-US', { month: 'short' }).toUpperCase();
+    const startDay = startDate.getDate();
+    const endMonth = endDate.toLocaleString('en-US', { month: 'short' }).toUpperCase();
+    const endDay = endDate.getDate();
+    const dateRange = `${startMonth} ${startDay} — ${endMonth} ${endDay}`;
+
+    let totalCost = 0;
+    for (const point of points) {
+      totalCost += point.basePrice;
+      const offersForType = this.#offersModel.getOffersByType(point.type);
+      point.offers.forEach((offerId) => {
+        const offer = offersForType.find((o) => o.id === offerId);
+        if (offer) {
+          totalCost += offer.price;
+        }
+      });
+    }
+
+    this.#tripInfo = { route, startDate: dateRange, endDate: dateRange, totalCost };
+  }
+
+  #renderTripInfo() {
+    const tripMainElement = document.querySelector('.trip-main');
+    const existingInfo = tripMainElement.querySelector('.trip-info');
+    if (existingInfo) {
+      existingInfo.remove();
+    }
+
+    if (!this.#tripInfo.route) {
+      return;
+    }
+
+    const tripInfoHtml = `
+      <div class="trip-info">
+        <div class="trip-info__main">
+          <h1 class="trip-info__title">${this.#tripInfo.route}</h1>
+          <p class="trip-info__dates">${this.#tripInfo.startDate}</p>
+        </div>
+        <p class="trip-info__cost">Total: € ${this.#tripInfo.totalCost}</p>
+      </div>
+    `;
+    tripMainElement.insertAdjacentHTML('afterbegin', tripInfoHtml);
   }
 
   #getFullPoints() {
@@ -118,7 +202,7 @@ export default class TripPresenter {
         return;
       }
       this.#currentSort = sortType;
-      this.#renderBoard();
+      this.#updateTripInfoAndRender();
     });
     render(this.#sortComponent, this.#tripEventsContainer, RenderPosition.AFTERBEGIN);
     this.#sortComponent._restoreHandlers();
@@ -212,7 +296,7 @@ export default class TripPresenter {
           await this.#pointsModel.addPoint(rawPoint);
           this.#isCreating = false;
           this.#newEventButton.disabled = false;
-          this.#renderBoard();
+          this.#updateTripInfoAndRender();
         } catch {
           createForm.shake();
         } finally {
@@ -222,7 +306,7 @@ export default class TripPresenter {
       () => {
         this.#isCreating = false;
         this.#newEventButton.disabled = false;
-        this.#renderBoard();
+        this.#updateTripInfoAndRender();
       }
     );
     render(createForm, this.#eventsList, RenderPosition.AFTERBEGIN);
@@ -231,7 +315,7 @@ export default class TripPresenter {
 
   #closeCreateForm() {
     this.#isCreating = false;
-    this.#renderBoard();
+    this.#updateTripInfoAndRender();
   }
 
   #handleNewEventClick() {
@@ -243,7 +327,7 @@ export default class TripPresenter {
     this.#currentSort = 'day';
     this.#filterModel.setFilter('MAJOR', FiltersPoint.EVERYTHING);
     this.#newEventButton.disabled = true;
-    this.#renderBoard();
+    this.#updateTripInfoAndRender();
   }
 
   #closeAllEditForms() {

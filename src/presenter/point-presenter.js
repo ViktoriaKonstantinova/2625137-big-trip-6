@@ -45,6 +45,9 @@ export default class PointPresenter {
       },
       () => {
         this.#closeEditForm();
+      },
+      () => {
+        this.#onDeleteClick();
       }
     );
   }
@@ -70,6 +73,11 @@ export default class PointPresenter {
     replace(this.#pointView, this.#editFormView);
     this.#pointView._restoreHandlers();
     this.#removeEscHandler();
+  }
+
+  #onDeleteClick() {
+    const deletedPoint = { ...this.#point, isDeleted: true };
+    this.#onDataChange(deletedPoint);
   }
 
   #addEscHandler() {

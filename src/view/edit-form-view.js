@@ -36,7 +36,11 @@ const createDestinationPhotosHtml = (pictures) => pictures.map((pic) => `
   <img class="event__photo" src="${pic.src}" alt="${pic.description}">
 `).join('');
 
-const createEditFormTemplate = (state, types, availableOffers, destinationDetails) => {
+const createDestinationOptions = (destinations) => destinations.map((dest) => `
+  <option value="${dest.name}"></option>
+`).join('');
+
+const createEditFormTemplate = (state, types, availableOffers, destinationDetails, allDestinations) => {
   const {
     type,
     basePrice,
@@ -58,6 +62,7 @@ const createEditFormTemplate = (state, types, availableOffers, destinationDetail
     ? createOffersHtml(availableOffers, selectedOffers)
     : '<p class="event__offers-empty">No offers available</p>';
   const destinationPhotosHtml = createDestinationPhotosHtml(destinationPictures);
+  const destinationOptionsHtml = createDestinationOptions(allDestinations);
 
   return `<li class="trip-events__item">
     <form class="event event--edit" action="#" method="post">
@@ -79,7 +84,9 @@ const createEditFormTemplate = (state, types, availableOffers, destinationDetail
         <div class="event__field-group event__field-group--destination">
           <label class="event__label event__type-output" for="event-destination-1">${type}</label>
           <input class="event__input event__input--destination" id="event-destination-1" type="text" name="event-destination" value="${destinationName}" list="destination-list-1" autocomplete="off">
-          <datalist id="destination-list-1"></datalist>
+          <datalist id="destination-list-1">
+            ${destinationOptionsHtml}
+          </datalist>
         </div>
 
         <div class="event__field-group event__field-group--time">
@@ -134,16 +141,19 @@ export default class EditFormView extends AbstractStatefulView {
   #offersModel = null;
   #onSubmit = null;
   #onCancel = null;
+  #onDelete = null;
   #types = ['taxi', 'bus', 'train', 'ship', 'drive', 'flight', 'check-in', 'sightseeing', 'restaurant'];
   #flatpickrStart = null;
   #flatpickrEnd = null;
+  #onEscKeyDown = null;
 
-  constructor(point, destinationsModel, offersModel, onSubmit, onCancel) {
+  constructor(point, destinationsModel, offersModel, onSubmit, onCancel, onDelete) {
     super();
     this.#destinationsModel = destinationsModel;
     this.#offersModel = offersModel;
     this.#onSubmit = onSubmit;
     this.#onCancel = onCancel;
+    this.#onDelete = onDelete;
     this._setState(point || getDefaultPoint());
   }
 
@@ -152,13 +162,15 @@ export default class EditFormView extends AbstractStatefulView {
     const destinationDetails = this._state.destination
       ? this.#destinationsModel.getDestinationById(this._state.destination.id)
       : null;
-    return createEditFormTemplate(this._state, this.#types, availableOffers, destinationDetails);
+    const allDestinations = this.#destinationsModel.getDestinations();
+    return createEditFormTemplate(this._state, this.#types, availableOffers, destinationDetails, allDestinations);
   }
 
   _restoreHandlers() {
     const element = this.element;
     const form = element.querySelector('form');
     const rollupBtn = element.querySelector('.event__rollup-btn');
+    const deleteButton = element.querySelector('.event__reset-btn');
     const typeInputs = element.querySelectorAll('.event__type-input');
     const destinationInput = element.querySelector('.event__input--destination');
     const priceInput = element.querySelector('.event__input--price');
@@ -166,13 +178,21 @@ export default class EditFormView extends AbstractStatefulView {
     const endTimeInput = element.querySelector('#event-end-time-1');
     const offersCheckboxes = element.querySelectorAll('.event__offer-checkbox');
 
+    deleteButton.addEventListener('click', (evt) => {
+      evt.preventDefault();
+      this.#removeEscHandler();
+      this.#onDelete();
+    });
+
     form.addEventListener('submit', (evt) => {
       evt.preventDefault();
+      this.#removeEscHandler();
       this.#onSubmit(this._state);
     });
 
     rollupBtn.addEventListener('click', (evt) => {
       evt.preventDefault();
+      this.#removeEscHandler();
       this.#onCancel();
     });
 
@@ -186,9 +206,12 @@ export default class EditFormView extends AbstractStatefulView {
 
     destinationInput.addEventListener('change', () => {
       const destinationName = destinationInput.value;
-      const destination = this.#destinationsModel.getAllDestinations().find((d) => d.name === destinationName);
+      const allDestinations = this.#destinationsModel.getDestinations();
+      const destination = allDestinations.find((d) => d.name === destinationName);
       if (destination) {
         this.#handleDestinationChange(destination);
+      } else {
+        this.updateElement({ destination: null });
       }
     });
 
@@ -213,6 +236,7 @@ export default class EditFormView extends AbstractStatefulView {
     });
 
     this.#initFlatpickr(startTimeInput, endTimeInput);
+    this.#addEscHandler();
   }
 
   #initFlatpickr(startInput, endInput) {
@@ -254,6 +278,24 @@ export default class EditFormView extends AbstractStatefulView {
       defaultDate: this._state.dateTo,
       minDate: this._state.dateFrom,
     });
+  }
+
+  #addEscHandler() {
+    this.#onEscKeyDown = (evt) => {
+      if (evt.key === 'Escape' || evt.key === 'Esc') {
+        evt.preventDefault();
+        this.#removeEscHandler();
+        this.#onCancel();
+      }
+    };
+    document.addEventListener('keydown', this.#onEscKeyDown);
+  }
+
+  #removeEscHandler() {
+    if (this.#onEscKeyDown) {
+      document.removeEventListener('keydown', this.#onEscKeyDown);
+      this.#onEscKeyDown = null;
+    }
   }
 
   #handleTypeChange(newType) {

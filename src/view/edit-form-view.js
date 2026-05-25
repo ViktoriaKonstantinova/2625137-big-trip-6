@@ -40,7 +40,7 @@ const createDestinationOptions = (destinations) => destinations.map((dest) => `
   <option value="${dest.name}"></option>
 `).join('');
 
-const createEditFormTemplate = (state, types, availableOffers, destinationDetails, allDestinations) => {
+const createEditFormTemplate = (state, types, availableOffers, destinationDetails, allDestinations, isSaving, isDeleting) => {
   const {
     type,
     basePrice,
@@ -64,6 +64,10 @@ const createEditFormTemplate = (state, types, availableOffers, destinationDetail
   const destinationPhotosHtml = createDestinationPhotosHtml(destinationPictures);
   const destinationOptionsHtml = createDestinationOptions(allDestinations);
 
+  const saveButtonText = isSaving ? 'Saving...' : 'Save';
+  const deleteButtonText = isDeleting ? 'Deleting...' : 'Delete';
+  const disabledAttr = isSaving || isDeleting ? 'disabled' : '';
+
   return `<li class="trip-events__item">
     <form class="event event--edit" action="#" method="post">
       <header class="event__header">
@@ -83,7 +87,7 @@ const createEditFormTemplate = (state, types, availableOffers, destinationDetail
 
         <div class="event__field-group event__field-group--destination">
           <label class="event__label event__type-output" for="event-destination-1">${type}</label>
-          <input class="event__input event__input--destination" id="event-destination-1" type="text" name="event-destination" value="${destinationName}" list="destination-list-1" autocomplete="off">
+          <input class="event__input event__input--destination" id="event-destination-1" type="text" name="event-destination" value="${destinationName}" list="destination-list-1" autocomplete="off" ${disabledAttr}>
           <datalist id="destination-list-1">
             ${destinationOptionsHtml}
           </datalist>
@@ -91,10 +95,10 @@ const createEditFormTemplate = (state, types, availableOffers, destinationDetail
 
         <div class="event__field-group event__field-group--time">
           <label class="visually-hidden" for="event-start-time-1">From</label>
-          <input class="event__input event__input--time" id="event-start-time-1" type="text" name="event-start-time" value="${formattedDateFrom}" autocomplete="off" readonly>
+          <input class="event__input event__input--time" id="event-start-time-1" type="text" name="event-start-time" value="${formattedDateFrom}" autocomplete="off" readonly ${disabledAttr}>
           &mdash;
           <label class="visually-hidden" for="event-end-time-1">To</label>
-          <input class="event__input event__input--time" id="event-end-time-1" type="text" name="event-end-time" value="${formattedDateTo}" autocomplete="off" readonly>
+          <input class="event__input event__input--time" id="event-end-time-1" type="text" name="event-end-time" value="${formattedDateTo}" autocomplete="off" readonly ${disabledAttr}>
         </div>
 
         <div class="event__field-group event__field-group--price">
@@ -102,12 +106,12 @@ const createEditFormTemplate = (state, types, availableOffers, destinationDetail
             <span class="visually-hidden">Price</span>
             &euro;
           </label>
-          <input class="event__input event__input--price" id="event-price-1" type="number" name="event-price" value="${basePrice}">
+          <input class="event__input event__input--price" id="event-price-1" type="number" name="event-price" value="${basePrice}" ${disabledAttr}>
         </div>
 
-        <button class="event__save-btn btn btn--blue" type="submit">Save</button>
-        <button class="event__reset-btn" type="reset">${state.id ? 'Delete' : 'Cancel'}</button>
-        <button class="event__rollup-btn" type="button">
+        <button class="event__save-btn btn btn--blue" type="submit" ${disabledAttr}>${saveButtonText}</button>
+        <button class="event__reset-btn" type="reset" ${disabledAttr}>${state.id ? deleteButtonText : 'Cancel'}</button>
+        <button class="event__rollup-btn" type="button" ${disabledAttr}>
           <span class="visually-hidden">Open event</span>
         </button>
       </header>
@@ -146,6 +150,8 @@ export default class EditFormView extends AbstractStatefulView {
   #flatpickrStart = null;
   #flatpickrEnd = null;
   #onEscKeyDown = null;
+  #isSaving = false;
+  #isDeleting = false;
 
   constructor(point, destinationsModel, offersModel, onSubmit, onCancel, onDelete) {
     super();
@@ -163,7 +169,7 @@ export default class EditFormView extends AbstractStatefulView {
       ? this.#destinationsModel.getDestinationById(this._state.destination.id)
       : null;
     const allDestinations = this.#destinationsModel.getDestinations();
-    return createEditFormTemplate(this._state, this.#types, availableOffers, destinationDetails, allDestinations);
+    return createEditFormTemplate(this._state, this.#types, availableOffers, destinationDetails, allDestinations, this.#isSaving, this.#isDeleting);
   }
 
   _restoreHandlers() {
@@ -178,65 +184,76 @@ export default class EditFormView extends AbstractStatefulView {
     const endTimeInput = element.querySelector('#event-end-time-1');
     const offersCheckboxes = element.querySelectorAll('.event__offer-checkbox');
 
-    deleteButton.addEventListener('click', (evt) => {
-      evt.preventDefault();
-      this.#removeEscHandler();
-      this.#onDelete();
-    });
-
-    form.addEventListener('submit', (evt) => {
-      evt.preventDefault();
-      this.#removeEscHandler();
-      this.#onSubmit(this._state);
-    });
-
-    rollupBtn.addEventListener('click', (evt) => {
-      evt.preventDefault();
-      this.#removeEscHandler();
-      this.#onCancel();
-    });
-
-    typeInputs.forEach((input) => {
-      input.addEventListener('change', () => {
-        if (input.checked) {
-          this.#handleTypeChange(input.value);
-        }
+    if (deleteButton && !this.#isDeleting) {
+      deleteButton.addEventListener('click', (evt) => {
+        evt.preventDefault();
+        this.#onDelete();
       });
-    });
+    }
 
-    destinationInput.addEventListener('change', () => {
-      const destinationName = destinationInput.value;
-      const allDestinations = this.#destinationsModel.getDestinations();
-      const destination = allDestinations.find((d) => d.name === destinationName);
-      if (destination) {
-        this.#handleDestinationChange(destination);
-      } else {
-        this.updateElement({ destination: null });
-      }
-    });
+    if (!this.#isSaving && !this.#isDeleting) {
+      form.addEventListener('submit', (evt) => {
+        evt.preventDefault();
+        this.#onSubmit(this._state);
+      });
 
-    priceInput.addEventListener('change', () => {
-      const newPrice = parseInt(priceInput.value, 10);
-      if (!isNaN(newPrice)) {
-        this.updateElement({ basePrice: newPrice });
-      }
-    });
+      rollupBtn.addEventListener('click', (evt) => {
+        evt.preventDefault();
+        this.#onCancel();
+      });
 
-    offersCheckboxes.forEach((checkbox) => {
-      checkbox.addEventListener('change', () => {
-        const offerId = checkbox.value;
-        let newOffers = [...this._state.offers];
-        if (checkbox.checked) {
-          newOffers.push(offerId);
+      typeInputs.forEach((input) => {
+        input.addEventListener('change', () => {
+          if (input.checked) {
+            this.#handleTypeChange(input.value);
+          }
+        });
+      });
+
+      destinationInput.addEventListener('change', () => {
+        const destinationName = destinationInput.value;
+        const allDestinations = this.#destinationsModel.getDestinations();
+        const destination = allDestinations.find((d) => d.name === destinationName);
+        if (destination) {
+          this.#handleDestinationChange(destination);
         } else {
-          newOffers = newOffers.filter((id) => id !== offerId);
+          this.updateElement({ destination: null });
         }
-        this.updateElement({ offers: newOffers });
       });
-    });
+
+      priceInput.addEventListener('change', () => {
+        const newPrice = parseInt(priceInput.value, 10);
+        if (!isNaN(newPrice)) {
+          this.updateElement({ basePrice: newPrice });
+        }
+      });
+
+      offersCheckboxes.forEach((checkbox) => {
+        checkbox.addEventListener('change', () => {
+          const offerId = checkbox.value;
+          let newOffers = [...this._state.offers];
+          if (checkbox.checked) {
+            newOffers.push(offerId);
+          } else {
+            newOffers = newOffers.filter((id) => id !== offerId);
+          }
+          this.updateElement({ offers: newOffers });
+        });
+      });
+    }
 
     this.#initFlatpickr(startTimeInput, endTimeInput);
     this.#addEscHandler();
+  }
+
+  setSaving(isSaving) {
+    this.#isSaving = isSaving;
+    this.updateElement({});
+  }
+
+  setDeleting(isDeleting) {
+    this.#isDeleting = isDeleting;
+    this.updateElement({});
   }
 
   #initFlatpickr(startInput, endInput) {
@@ -284,7 +301,6 @@ export default class EditFormView extends AbstractStatefulView {
     this.#onEscKeyDown = (evt) => {
       if (evt.key === 'Escape' || evt.key === 'Esc') {
         evt.preventDefault();
-        this.#removeEscHandler();
         this.#onCancel();
       }
     };

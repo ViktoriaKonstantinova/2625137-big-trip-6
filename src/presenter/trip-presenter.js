@@ -148,23 +148,9 @@ export default class TripPresenter {
       isFavorite: updatedPoint.isFavorite,
     };
     if (updatedPoint.isDeleted) {
-      try {
-        await this.#pointsModel.deletePoint(updatedPoint.id);
-      } catch {
-        const pointToShake = this.#pointPresenters.get(updatedPoint.id);
-        if (pointToShake) {
-          pointToShake.shake();
-        }
-      }
+      await this.#pointsModel.deletePoint(updatedPoint.id);
     } else {
-      try {
-        await this.#pointsModel.updatePoint(rawPoint);
-      } catch {
-        const pointToShake = this.#pointPresenters.get(updatedPoint.id);
-        if (pointToShake) {
-          pointToShake.shake();
-        }
-      }
+      await this.#pointsModel.updatePoint(rawPoint);
     }
     const updatedPresenter = this.#pointPresenters.get(updatedPoint.id);
     if (updatedPresenter) {
@@ -212,6 +198,7 @@ export default class TripPresenter {
       this.#destinationsModel,
       this.#offersModel,
       async (newPoint) => {
+        createForm.setSaving(true);
         try {
           const rawPoint = {
             type: newPoint.type,
@@ -225,11 +212,11 @@ export default class TripPresenter {
           await this.#pointsModel.addPoint(rawPoint);
           this.#isCreating = false;
           this.#newEventButton.disabled = false;
+          this.#renderBoard();
         } catch {
-          const formComponent = this.#eventsList.querySelector('.event--edit');
-          if (formComponent && formComponent.__component) {
-            formComponent.__component.shake();
-          }
+          createForm.shake();
+        } finally {
+          createForm.setSaving(false);
         }
       },
       () => {

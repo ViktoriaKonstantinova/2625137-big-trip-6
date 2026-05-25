@@ -40,14 +40,40 @@ export default class PointPresenter {
       this.#point,
       this.#destinationsModel,
       this.#offersModel,
-      () => {
-        this.#closeEditForm();
+      async (updatedPoint) => {
+        this.#editFormView.setSaving(true);
+        try {
+          const rawPoint = {
+            id: updatedPoint.id,
+            type: updatedPoint.type,
+            basePrice: updatedPoint.basePrice,
+            dateFrom: updatedPoint.dateFrom,
+            dateTo: updatedPoint.dateTo,
+            destination: typeof updatedPoint.destination === 'object' ? updatedPoint.destination.id : updatedPoint.destination,
+            offers: updatedPoint.offers.map((offer) => typeof offer === 'object' ? offer.id : offer),
+            isFavorite: updatedPoint.isFavorite,
+          };
+          await this.#onDataChange({ ...rawPoint, isDeleted: false });
+          this.#closeEditForm();
+        } catch {
+          this.#editFormView.shake();
+        } finally {
+          this.#editFormView.setSaving(false);
+        }
       },
       () => {
         this.#closeEditForm();
       },
-      () => {
-        this.#onDeleteClick();
+      async () => {
+        this.#editFormView.setDeleting(true);
+        try {
+          await this.#onDataChange({ ...this.#point, isDeleted: true });
+          this.#closeEditForm();
+        } catch {
+          this.#editFormView.shake();
+        } finally {
+          this.#editFormView.setDeleting(false);
+        }
       }
     );
   }
@@ -73,11 +99,6 @@ export default class PointPresenter {
     replace(this.#pointView, this.#editFormView);
     this.#pointView._restoreHandlers();
     this.#removeEscHandler();
-  }
-
-  #onDeleteClick() {
-    const deletedPoint = { ...this.#point, isDeleted: true };
-    this.#onDataChange(deletedPoint);
   }
 
   #addEscHandler() {
@@ -139,5 +160,9 @@ export default class PointPresenter {
     if (this.#editFormView && this.#editFormView.element && this.#editFormView.element.parentElement) {
       this.#closeEditForm();
     }
+  }
+
+  shake() {
+    this.#pointView.shake();
   }
 }

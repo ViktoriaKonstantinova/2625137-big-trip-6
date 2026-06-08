@@ -24,25 +24,17 @@ export default class PointsModel extends Observable {
     if (index === -1) {
       return;
     }
-    try {
-      const response = await this.#api.updatePoint(updatedPoint);
-      const adaptedPoint = adaptToClient(response);
-      this.#points[index] = adaptedPoint;
-      this._notify('MINOR', adaptedPoint);
-    } catch (err) {
-      throw new Error('Не удалось обновить точку');
-    }
+    const response = await this.#api.updatePoint(updatedPoint);
+    const adaptedPoint = adaptToClient(response);
+    this.#points[index] = adaptedPoint;
+    this._notify('MINOR', adaptedPoint);
   }
 
   async addPoint(point) {
-    try {
-      const response = await this.#api.addPoint(point);
-      const adaptedPoint = adaptToClient(response);
-      this.#points.push(adaptedPoint);
-      this._notify('MAJOR', adaptedPoint);
-    } catch (err) {
-      throw new Error('Не удалось добавить точку');
-    }
+    const response = await this.#api.addPoint(point);
+    const adaptedPoint = adaptToClient(response);
+    this.#points.push(adaptedPoint);
+    this._notify('MAJOR', adaptedPoint);
   }
 
   async deletePoint(pointId) {
@@ -50,12 +42,8 @@ export default class PointsModel extends Observable {
     if (index === -1) {
       return;
     }
-    try {
-      await this.#api.deletePoint(pointId);
-      this.#points.splice(index, 1);
-      this._notify('MAJOR', null);
-    } catch (err) {
-      throw new Error('Не удалось удалить точку');
-    }
+    await this.#api.deletePoint(pointId);
+    this.#points.splice(index, 1);
+    this._notify('MAJOR', null);
   }
 }

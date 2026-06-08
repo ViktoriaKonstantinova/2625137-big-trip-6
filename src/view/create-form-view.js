@@ -7,8 +7,8 @@ const getEmptyPoint = () => ({
   id: null,
   type: 'flight',
   basePrice: 0,
-  dateFrom: new Date().toISOString(),
-  dateTo: new Date(Date.now() + 3600000).toISOString(),
+  dateFrom: null,
+  dateTo: null,
   destination: null,
   offers: [],
   isFavorite: false,
@@ -50,8 +50,8 @@ const createCreateFormTemplate = (state, types, availableOffers, destinationDeta
     offers: selectedOffers,
   } = state;
 
-  const formattedDateFrom = formatDate(dateFrom, 'd/m/y H:i');
-  const formattedDateTo = formatDate(dateTo, 'd/m/y H:i');
+  const formattedDateFrom = dateFrom ? formatDate(dateFrom, 'd/m/y H:i') : '';
+  const formattedDateTo = dateTo ? formatDate(dateTo, 'd/m/y H:i') : '';
 
   const destinationName = destination?.name || '';
   const destinationDescription = destinationDetails?.description || '';
@@ -109,8 +109,8 @@ const createCreateFormTemplate = (state, types, availableOffers, destinationDeta
         </div>
 
         <button class="event__save-btn btn btn--blue" type="submit" ${disabledAttr}>${saveButtonText}</button>
-        <button class="event__reset-btn" type="reset" ${disabledAttr}>Cancel</button>
-        <button class="event__rollup-btn" type="button" ${disabledAttr}>
+        <button class="event__reset-btn" type="reset">Cancel</button>
+        <button class="event__rollup-btn" type="button">
           <span class="visually-hidden">Open event</span>
         </button>
       </header>
@@ -123,15 +123,17 @@ const createCreateFormTemplate = (state, types, availableOffers, destinationDeta
           </div>
         </section>
         ` : ''}
-        ${destinationDetails ? `
+        ${(destinationDescription || destinationPictures.length) ? `
         <section class="event__section event__section--destination">
           <h3 class="event__section-title event__section-title--destination">Destination</h3>
-          <p class="event__destination-description">${destinationDescription}</p>
+          ${destinationDescription ? `<p class="event__destination-description">${destinationDescription}</p>` : ''}
+          ${destinationPictures.length ? `
           <div class="event__photos-container">
             <div class="event__photos-tape">
               ${destinationPhotosHtml}
             </div>
           </div>
+          ` : ''}
         </section>
         ` : ''}
       </section>
@@ -231,6 +233,15 @@ export default class CreateFormView extends AbstractStatefulView {
       });
 
       offersCheckboxes.forEach((checkbox) => {
+        const label = checkbox.closest('.event__offer-selector')?.querySelector('.event__offer-label');
+        if (label) {
+          label.addEventListener('click', (evt) => {
+            evt.preventDefault();
+            checkbox.checked = !checkbox.checked;
+            const changeEvent = new Event('change', { bubbles: true });
+            checkbox.dispatchEvent(changeEvent);
+          });
+        }
         checkbox.addEventListener('change', () => {
           const offerId = checkbox.value;
           let newOffers = [...this._state.offers];
@@ -250,7 +261,74 @@ export default class CreateFormView extends AbstractStatefulView {
 
   setSaving(isSaving) {
     this.#isSaving = isSaving;
-    this.updateElement({});
+    const saveButton = this.element?.querySelector('.event__save-btn');
+    const destinationInput = this.element?.querySelector('.event__input--destination');
+    const priceInput = this.element?.querySelector('.event__input--price');
+    const typeInputs = this.element?.querySelectorAll('.event__type-input');
+    const offersCheckboxes = this.element?.querySelectorAll('.event__offer-checkbox');
+    const startTimeInput = this.element?.querySelector('#event-start-time-1');
+    const endTimeInput = this.element?.querySelector('#event-end-time-1');
+
+    if (saveButton) {
+      saveButton.textContent = isSaving ? 'Saving...' : 'Save';
+      if (isSaving) {
+        saveButton.setAttribute('disabled', 'disabled');
+      } else {
+        saveButton.removeAttribute('disabled');
+      }
+    }
+
+    if (destinationInput) {
+      if (isSaving) {
+        destinationInput.setAttribute('disabled', 'disabled');
+      } else {
+        destinationInput.removeAttribute('disabled');
+      }
+    }
+
+    if (priceInput) {
+      if (isSaving) {
+        priceInput.setAttribute('disabled', 'disabled');
+      } else {
+        priceInput.removeAttribute('disabled');
+      }
+    }
+
+    if (typeInputs) {
+      typeInputs.forEach((input) => {
+        if (isSaving) {
+          input.setAttribute('disabled', 'disabled');
+        } else {
+          input.removeAttribute('disabled');
+        }
+      });
+    }
+
+    if (offersCheckboxes) {
+      offersCheckboxes.forEach((checkbox) => {
+        if (isSaving) {
+          checkbox.setAttribute('disabled', 'disabled');
+        } else {
+          checkbox.removeAttribute('disabled');
+        }
+      });
+    }
+
+    if (startTimeInput) {
+      if (isSaving) {
+        startTimeInput.setAttribute('disabled', 'disabled');
+      } else {
+        startTimeInput.removeAttribute('disabled');
+      }
+    }
+
+    if (endTimeInput) {
+      if (isSaving) {
+        endTimeInput.setAttribute('disabled', 'disabled');
+      } else {
+        endTimeInput.removeAttribute('disabled');
+      }
+    }
   }
 
   #initFlatpickr(startInput, endInput) {
@@ -266,32 +344,52 @@ export default class CreateFormView extends AbstractStatefulView {
       enableTime: true,
       'time_24hr': true,
       locale: { firstDayOfWeek: 1 },
-      onClose: (selectedDates, dateStr, instance) => {
+      onChange: (selectedDates, dateStr, instance) => {
         if (selectedDates.length === 0) {
           return;
         }
         if (instance.element.id === 'event-start-time-1') {
-          this.updateElement({ dateFrom: selectedDates[0].toISOString() });
+          this._state.dateFrom = selectedDates[0].toISOString();
           if (this.#flatpickrEnd) {
             this.#flatpickrEnd.set('minDate', selectedDates[0]);
           }
         } else {
-          this.updateElement({ dateTo: selectedDates[0].toISOString() });
+          this._state.dateTo = selectedDates[0].toISOString();
         }
+        return false;
       },
     };
 
-    this.#flatpickrStart = flatpickr(startInput, {
-      ...commonConfig,
-      defaultDate: this._state.dateFrom,
-      minDate: 'today',
-    });
+    if (this._state.dateFrom) {
+      this.#flatpickrStart = flatpickr(startInput, {
+        ...commonConfig,
+        defaultDate: new Date(this._state.dateFrom),
+        minDate: 'today',
+      });
+    } else {
+      this.#flatpickrStart = flatpickr(startInput, {
+        ...commonConfig,
+        defaultDate: null,
+        minDate: 'today',
+      });
+      startInput.value = '';
+    }
 
-    this.#flatpickrEnd = flatpickr(endInput, {
-      ...commonConfig,
-      defaultDate: this._state.dateTo,
-      minDate: this._state.dateFrom,
-    });
+    if (this._state.dateTo) {
+      const minDate = this._state.dateFrom ? new Date(this._state.dateFrom) : 'today';
+      this.#flatpickrEnd = flatpickr(endInput, {
+        ...commonConfig,
+        defaultDate: new Date(this._state.dateTo),
+        minDate: minDate,
+      });
+    } else {
+      this.#flatpickrEnd = flatpickr(endInput, {
+        ...commonConfig,
+        defaultDate: null,
+        minDate: this._state.dateFrom ? new Date(this._state.dateFrom) : 'today',
+      });
+      endInput.value = '';
+    }
   }
 
   #addEscHandler() {

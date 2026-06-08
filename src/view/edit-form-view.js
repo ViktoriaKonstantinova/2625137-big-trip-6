@@ -66,7 +66,7 @@ const createEditFormTemplate = (state, types, availableOffers, destinationDetail
 
   const saveButtonText = isSaving ? 'Saving...' : 'Save';
   const deleteButtonText = isDeleting ? 'Deleting...' : 'Delete';
-  const disabledAttr = isSaving || isDeleting ? 'disabled' : '';
+  const saveDisabled = isSaving || isDeleting ? 'disabled' : '';
 
   return `<li class="trip-events__item">
     <form class="event event--edit" action="#" method="post">
@@ -87,7 +87,7 @@ const createEditFormTemplate = (state, types, availableOffers, destinationDetail
 
         <div class="event__field-group event__field-group--destination">
           <label class="event__label event__type-output" for="event-destination-1">${type}</label>
-          <input class="event__input event__input--destination" id="event-destination-1" type="text" name="event-destination" value="${destinationName}" list="destination-list-1" autocomplete="off" ${disabledAttr}>
+          <input class="event__input event__input--destination" id="event-destination-1" type="text" name="event-destination" value="${destinationName}" list="destination-list-1" autocomplete="off" ${saveDisabled}>
           <datalist id="destination-list-1">
             ${destinationOptionsHtml}
           </datalist>
@@ -95,10 +95,10 @@ const createEditFormTemplate = (state, types, availableOffers, destinationDetail
 
         <div class="event__field-group event__field-group--time">
           <label class="visually-hidden" for="event-start-time-1">From</label>
-          <input class="event__input event__input--time" id="event-start-time-1" type="text" name="event-start-time" value="${formattedDateFrom}" autocomplete="off" readonly ${disabledAttr}>
+          <input class="event__input event__input--time" id="event-start-time-1" type="text" name="event-start-time" value="${formattedDateFrom}" autocomplete="off" readonly ${saveDisabled}>
           &mdash;
           <label class="visually-hidden" for="event-end-time-1">To</label>
-          <input class="event__input event__input--time" id="event-end-time-1" type="text" name="event-end-time" value="${formattedDateTo}" autocomplete="off" readonly ${disabledAttr}>
+          <input class="event__input event__input--time" id="event-end-time-1" type="text" name="event-end-time" value="${formattedDateTo}" autocomplete="off" readonly ${saveDisabled}>
         </div>
 
         <div class="event__field-group event__field-group--price">
@@ -106,12 +106,12 @@ const createEditFormTemplate = (state, types, availableOffers, destinationDetail
             <span class="visually-hidden">Price</span>
             &euro;
           </label>
-          <input class="event__input event__input--price" id="event-price-1" type="number" name="event-price" value="${basePrice}" ${disabledAttr}>
+          <input class="event__input event__input--price" id="event-price-1" type="number" name="event-price" value="${basePrice}" ${saveDisabled}>
         </div>
 
-        <button class="event__save-btn btn btn--blue" type="submit" ${disabledAttr}>${saveButtonText}</button>
-        <button class="event__reset-btn" type="reset" ${disabledAttr}>${state.id ? deleteButtonText : 'Cancel'}</button>
-        <button class="event__rollup-btn" type="button" ${disabledAttr}>
+        <button class="event__save-btn btn btn--blue" type="submit" ${saveDisabled}>${saveButtonText}</button>
+        <button class="event__reset-btn" type="reset">${state.id ? deleteButtonText : 'Cancel'}</button>
+        <button class="event__rollup-btn" type="button">
           <span class="visually-hidden">Open event</span>
         </button>
       </header>
@@ -124,15 +124,17 @@ const createEditFormTemplate = (state, types, availableOffers, destinationDetail
           </div>
         </section>
         ` : ''}
-        ${destinationDetails ? `
+        ${(destinationDescription || destinationPictures.length) ? `
         <section class="event__section event__section--destination">
           <h3 class="event__section-title event__section-title--destination">Destination</h3>
-          <p class="event__destination-description">${destinationDescription}</p>
+          ${destinationDescription ? `<p class="event__destination-description">${destinationDescription}</p>` : ''}
+          ${destinationPictures.length ? `
           <div class="event__photos-container">
             <div class="event__photos-tape">
               ${destinationPhotosHtml}
             </div>
           </div>
+          ` : ''}
         </section>
         ` : ''}
       </section>
@@ -229,6 +231,15 @@ export default class EditFormView extends AbstractStatefulView {
       });
 
       offersCheckboxes.forEach((checkbox) => {
+        const label = checkbox.closest('.event__offer-selector')?.querySelector('.event__offer-label');
+        if (label) {
+          label.addEventListener('click', (evt) => {
+            evt.preventDefault();
+            checkbox.checked = !checkbox.checked;
+            const changeEvent = new Event('change', { bubbles: true });
+            checkbox.dispatchEvent(changeEvent);
+          });
+        }
         checkbox.addEventListener('change', () => {
           const offerId = checkbox.value;
           let newOffers = [...this._state.offers];
@@ -248,12 +259,146 @@ export default class EditFormView extends AbstractStatefulView {
 
   setSaving(isSaving) {
     this.#isSaving = isSaving;
-    this.updateElement({});
+    const saveButton = this.element?.querySelector('.event__save-btn');
+    const destinationInput = this.element?.querySelector('.event__input--destination');
+    const priceInput = this.element?.querySelector('.event__input--price');
+    const typeInputs = this.element?.querySelectorAll('.event__type-input');
+    const offersCheckboxes = this.element?.querySelectorAll('.event__offer-checkbox');
+    const startTimeInput = this.element?.querySelector('#event-start-time-1');
+    const endTimeInput = this.element?.querySelector('#event-end-time-1');
+
+    if (saveButton) {
+      saveButton.textContent = isSaving ? 'Saving...' : 'Save';
+      if (isSaving) {
+        saveButton.setAttribute('disabled', 'disabled');
+      } else {
+        saveButton.removeAttribute('disabled');
+      }
+    }
+
+    if (destinationInput) {
+      if (isSaving) {
+        destinationInput.setAttribute('disabled', 'disabled');
+      } else {
+        destinationInput.removeAttribute('disabled');
+      }
+    }
+
+    if (priceInput) {
+      if (isSaving) {
+        priceInput.setAttribute('disabled', 'disabled');
+      } else {
+        priceInput.removeAttribute('disabled');
+      }
+    }
+
+    if (typeInputs) {
+      typeInputs.forEach((input) => {
+        if (isSaving) {
+          input.setAttribute('disabled', 'disabled');
+        } else {
+          input.removeAttribute('disabled');
+        }
+      });
+    }
+
+    if (offersCheckboxes) {
+      offersCheckboxes.forEach((checkbox) => {
+        if (isSaving) {
+          checkbox.setAttribute('disabled', 'disabled');
+        } else {
+          checkbox.removeAttribute('disabled');
+        }
+      });
+    }
+
+    if (startTimeInput) {
+      if (isSaving) {
+        startTimeInput.setAttribute('disabled', 'disabled');
+      } else {
+        startTimeInput.removeAttribute('disabled');
+      }
+    }
+
+    if (endTimeInput) {
+      if (isSaving) {
+        endTimeInput.setAttribute('disabled', 'disabled');
+      } else {
+        endTimeInput.removeAttribute('disabled');
+      }
+    }
   }
 
   setDeleting(isDeleting) {
     this.#isDeleting = isDeleting;
-    this.updateElement({});
+    const deleteButton = this.element?.querySelector('.event__reset-btn');
+    const destinationInput = this.element?.querySelector('.event__input--destination');
+    const priceInput = this.element?.querySelector('.event__input--price');
+    const typeInputs = this.element?.querySelectorAll('.event__type-input');
+    const offersCheckboxes = this.element?.querySelectorAll('.event__offer-checkbox');
+    const startTimeInput = this.element?.querySelector('#event-start-time-1');
+    const endTimeInput = this.element?.querySelector('#event-end-time-1');
+
+    if (deleteButton && this._state.id) {
+      deleteButton.textContent = isDeleting ? 'Deleting...' : 'Delete';
+      if (isDeleting) {
+        deleteButton.setAttribute('disabled', 'disabled');
+      } else {
+        deleteButton.removeAttribute('disabled');
+      }
+    }
+
+    if (destinationInput) {
+      if (isDeleting) {
+        destinationInput.setAttribute('disabled', 'disabled');
+      } else {
+        destinationInput.removeAttribute('disabled');
+      }
+    }
+
+    if (priceInput) {
+      if (isDeleting) {
+        priceInput.setAttribute('disabled', 'disabled');
+      } else {
+        priceInput.removeAttribute('disabled');
+      }
+    }
+
+    if (typeInputs) {
+      typeInputs.forEach((input) => {
+        if (isDeleting) {
+          input.setAttribute('disabled', 'disabled');
+        } else {
+          input.removeAttribute('disabled');
+        }
+      });
+    }
+
+    if (offersCheckboxes) {
+      offersCheckboxes.forEach((checkbox) => {
+        if (isDeleting) {
+          checkbox.setAttribute('disabled', 'disabled');
+        } else {
+          checkbox.removeAttribute('disabled');
+        }
+      });
+    }
+
+    if (startTimeInput) {
+      if (isDeleting) {
+        startTimeInput.setAttribute('disabled', 'disabled');
+      } else {
+        startTimeInput.removeAttribute('disabled');
+      }
+    }
+
+    if (endTimeInput) {
+      if (isDeleting) {
+        endTimeInput.setAttribute('disabled', 'disabled');
+      } else {
+        endTimeInput.removeAttribute('disabled');
+      }
+    }
   }
 
   #initFlatpickr(startInput, endInput) {

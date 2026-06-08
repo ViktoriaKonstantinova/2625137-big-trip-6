@@ -37,11 +37,9 @@ export function formatDate(date, format) {
 }
 
 export function formatDuration(dateFrom, dateTo) {
-  const from = toDate(dateFrom);
-  const to = toDate(dateTo);
-  const diff = to - from;
+  const diff = new Date(dateTo) - new Date(dateFrom);
   if (diff < 0) {
-    return '0M';
+    return '00M';
   }
   const seconds = Math.floor(diff / 1000);
   const minutes = Math.floor(seconds / 60);
@@ -51,12 +49,12 @@ export function formatDuration(dateFrom, dateTo) {
   const remainMinutes = minutes % 60;
 
   if (days > 0) {
-    return `${days}D ${String(remainHours).padStart(2, '0')}H ${String(remainMinutes).padStart(2, '0')}M`;
+    return `${String(days).padStart(2, '0')}D ${String(remainHours).padStart(2, '0')}H ${String(remainMinutes).padStart(2, '0')}M`;
   }
   if (hours > 0) {
     return `${String(hours).padStart(2, '0')}H ${String(remainMinutes).padStart(2, '0')}M`;
   }
-  return `${minutes}M`;
+  return `${String(minutes).padStart(2, '0')}M`;
 }
 
 export function isFuturePoint(point) {

@@ -47,16 +47,18 @@ const init = async () => {
     destinationsModel.setDestinations(destinations);
     offersModel.setOffers(offers);
     pointsModel.setPoints(points.map(adaptToClient));
+    removeLoading();
     filterPresenter.init();
     tripPresenter.init();
   } catch (err) {
     destinationsModel.setDestinations([]);
     offersModel.setOffers([]);
     pointsModel.setPoints([]);
-    filterPresenter.init();
-    tripPresenter.init();
-  } finally {
     removeLoading();
+    const errorMessage = document.createElement('p');
+    errorMessage.className = 'trip-events__msg';
+    errorMessage.textContent = 'Failed to load latest route information';
+    tripEventsContainer.appendChild(errorMessage);
   }
 };
 

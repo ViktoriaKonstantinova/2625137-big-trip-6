@@ -11,6 +11,7 @@ export default class PointPresenter {
   #onModeChange = null;
   #destinationsModel = null;
   #offersModel = null;
+  #isEditMode = false;
 
   constructor(container, onDataChange, onModeChange, destinationsModel, offersModel) {
     this.#container = container;
@@ -29,18 +30,25 @@ export default class PointPresenter {
 
   #createPointView() {
     this.#pointView = new PointView(this.#point, () => {
-      this.#openEditForm();
+      this.#handleRollupClick();
     }, () => {
       this.#onFavoriteClick();
     });
   }
 
   #createEditFormView() {
+    const pointForForm = {
+      ...this.#point,
+      offers: this.#point.offers.map((offer) => typeof offer === 'object' ? offer.id : offer),
+    };
     this.#editFormView = new EditFormView(
-      this.#point,
+      pointForForm,
       this.#destinationsModel,
       this.#offersModel,
       async (updatedPoint) => {
+        if (!this.#isEditMode) {
+          return;
+        }
         this.#editFormView.setSaving(true);
         try {
           const rawPoint = {
@@ -62,9 +70,15 @@ export default class PointPresenter {
         }
       },
       () => {
+        if (!this.#isEditMode) {
+          return;
+        }
         this.#closeEditForm();
       },
       async () => {
+        if (!this.#isEditMode) {
+          return;
+        }
         this.#editFormView.setDeleting(true);
         try {
           await this.#onDataChange({ ...this.#point, isDeleted: true });
@@ -78,44 +92,63 @@ export default class PointPresenter {
     );
   }
 
+  #handleRollupClick() {
+    if (this.#isEditMode) {
+      this.#closeEditForm();
+    } else {
+      this.#openEditForm();
+    }
+  }
+
   #openEditForm() {
+    if (this.#isEditMode) {
+      return;
+    }
     this.#onModeChange();
-    if (this.#editFormView) {
-      this.#editFormView.removeElement();
-    }
     this.#createEditFormView();
-    if (!this.#container.contains(this.#pointView.element)) {
-      render(this.#pointView, this.#container);
-    }
     replace(this.#editFormView, this.#pointView);
     this.#editFormView._restoreHandlers();
+    this.#isEditMode = true;
     this.#addEscHandler();
   }
 
   #closeEditForm() {
-    if (!this.#editFormView || !this.#editFormView.element) {
+    if (!this.#isEditMode) {
       return;
     }
-    replace(this.#pointView, this.#editFormView);
+    if (this.#editFormView && this.#editFormView.element) {
+      try {
+        replace(this.#pointView, this.#editFormView);
+      } catch {
+        if (this.#editFormView.element.parentElement) {
+          this.#editFormView.element.remove();
+        }
+        if (!this.#pointView.element.parentElement) {
+          render(this.#pointView, this.#container);
+        }
+      }
+    }
     this.#pointView._restoreHandlers();
+    this.#isEditMode = false;
     this.#removeEscHandler();
   }
 
   #addEscHandler() {
-    this.#editFormView._onEscKeyDown = (evt) => {
+    const onEscKeyDown = (evt) => {
       if (evt.key === 'Escape' || evt.key === 'Esc') {
         evt.preventDefault();
         this.#closeEditForm();
-        document.removeEventListener('keydown', this.#editFormView._onEscKeyDown);
+        document.removeEventListener('keydown', onEscKeyDown);
       }
     };
-    document.addEventListener('keydown', this.#editFormView._onEscKeyDown);
+    document.addEventListener('keydown', onEscKeyDown);
+    this.#editFormView._escHandler = onEscKeyDown;
   }
 
   #removeEscHandler() {
-    if (this.#editFormView && this.#editFormView._onEscKeyDown) {
-      document.removeEventListener('keydown', this.#editFormView._onEscKeyDown);
-      delete this.#editFormView._onEscKeyDown;
+    if (this.#editFormView && this.#editFormView._escHandler) {
+      document.removeEventListener('keydown', this.#editFormView._escHandler);
+      delete this.#editFormView._escHandler;
     }
   }
 
@@ -124,13 +157,15 @@ export default class PointPresenter {
       ...this.#point,
       isFavorite: !this.#point.isFavorite
     };
-    this.#onDataChange(updatedPoint);
+    this.#onDataChange(updatedPoint).catch(() => {
+      this.shake();
+    });
   }
 
   update(point) {
     this.#point = point;
     const newPointView = new PointView(this.#point, () => {
-      this.#openEditForm();
+      this.#handleRollupClick();
     }, () => {
       this.#onFavoriteClick();
     });
@@ -138,7 +173,7 @@ export default class PointPresenter {
     this.#pointView = newPointView;
     this.#pointView._restoreHandlers();
 
-    if (this.#editFormView && this.#editFormView.element && this.#editFormView.element.parentElement) {
+    if (this.#isEditMode) {
       const oldEditForm = this.#editFormView;
       this.#createEditFormView();
       replace(this.#editFormView, oldEditForm);
@@ -157,7 +192,7 @@ export default class PointPresenter {
   }
 
   resetView() {
-    if (this.#editFormView && this.#editFormView.element && this.#editFormView.element.parentElement) {
+    if (this.#isEditMode) {
       this.#closeEditForm();
     }
   }

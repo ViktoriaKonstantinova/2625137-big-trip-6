@@ -62,7 +62,7 @@ export default class TripPresenter {
   #updateTripInfo() {
     const points = this.#pointsModel.getPoints();
     if (points.length === 0) {
-      this.#tripInfo = { route: '', startDate: '', endDate: '', totalCost: 0 };
+      this.#tripInfo = { route: '', dateRange: '', totalCost: 0 };
       return;
     }
 
@@ -70,41 +70,46 @@ export default class TripPresenter {
     const firstPoint = sortedPoints[0];
     const lastPoint = sortedPoints[sortedPoints.length - 1];
 
-    const destinations = sortedPoints.map((point) => {
+    const destinations = [];
+    for (const point of sortedPoints) {
       const dest = this.#destinationsModel.getDestinationById(point.destination);
-      return dest ? dest.name : '';
-    }).filter((name) => name);
+      if (dest) {
+        destinations.push(dest.name);
+      }
+    }
 
     let route = '';
     if (destinations.length === 0) {
       route = '';
-    } else if (destinations.length <= 3) {
-      route = destinations.join(' — ');
+    } else if (destinations.length === 1) {
+      route = destinations[0];
+    } else if (destinations.length === 2) {
+      route = `${destinations[0]} — ${destinations[1]}`;
     } else {
       route = `${destinations[0]} — ... — ${destinations[destinations.length - 1]}`;
     }
 
     const startDate = new Date(firstPoint.dateFrom);
     const endDate = new Date(lastPoint.dateTo);
-    const startMonth = startDate.toLocaleString('en-US', { month: 'short' }).toUpperCase();
     const startDay = startDate.getDate();
-    const endMonth = endDate.toLocaleString('en-US', { month: 'short' }).toUpperCase();
+    const startMonth = startDate.toLocaleString('en-US', { month: 'short' }).toUpperCase();
     const endDay = endDate.getDate();
-    const dateRange = `${startMonth} ${startDay} — ${endMonth} ${endDay}`;
+    const endMonth = endDate.toLocaleString('en-US', { month: 'short' }).toUpperCase();
+    const dateRange = `${startDay} ${startMonth} — ${endDay} ${endMonth}`;
 
     let totalCost = 0;
     for (const point of points) {
       totalCost += point.basePrice;
       const offersForType = this.#offersModel.getOffersByType(point.type);
-      point.offers.forEach((offerId) => {
+      for (const offerId of point.offers) {
         const offer = offersForType.find((o) => o.id === offerId);
         if (offer) {
           totalCost += offer.price;
         }
-      });
+      }
     }
 
-    this.#tripInfo = { route, startDate: dateRange, endDate: dateRange, totalCost };
+    this.#tripInfo = { route, dateRange, totalCost };
   }
 
   #renderTripInfo() {
@@ -114,7 +119,8 @@ export default class TripPresenter {
       existingInfo.remove();
     }
 
-    if (!this.#tripInfo.route) {
+    const points = this.#pointsModel.getPoints();
+    if (points.length === 0) {
       return;
     }
 
@@ -122,9 +128,9 @@ export default class TripPresenter {
       <div class="trip-info">
         <div class="trip-info__main">
           <h1 class="trip-info__title">${this.#tripInfo.route}</h1>
-          <p class="trip-info__dates">${this.#tripInfo.startDate}</p>
+          <p class="trip-info__dates">${this.#tripInfo.dateRange}</p>
         </div>
-        <p class="trip-info__cost">Total: € ${this.#tripInfo.totalCost}</p>
+        <p class="trip-info__cost">Total: € <span class="trip-info__cost-value">${this.#tripInfo.totalCost}</span></p>
       </div>
     `;
     tripMainElement.insertAdjacentHTML('afterbegin', tripInfoHtml);
@@ -239,8 +245,13 @@ export default class TripPresenter {
     const updatedPresenter = this.#pointPresenters.get(updatedPoint.id);
     if (updatedPresenter) {
       const fullPoint = this.#getFullPoints().find((p) => p.id === updatedPoint.id);
-      updatedPresenter.update(fullPoint);
+      const pointForUpdate = {
+        ...fullPoint,
+        offers: fullPoint.offers.map((offer) => typeof offer === 'object' ? offer.id : offer),
+      };
+      updatedPresenter.update(pointForUpdate);
     }
+    this.#updateTripInfoAndRender();
   }
 
   #handleModeChange() {
@@ -248,6 +259,11 @@ export default class TripPresenter {
     if (this.#isCreating) {
       this.#closeCreateForm();
     }
+  }
+
+  #closeCreateForm() {
+    this.#isCreating = false;
+    this.#newEventButton.disabled = false;
   }
 
   #renderBoard() {
@@ -299,7 +315,6 @@ export default class TripPresenter {
           this.#updateTripInfoAndRender();
         } catch {
           createForm.shake();
-        } finally {
           createForm.setSaving(false);
         }
       },
@@ -313,24 +328,15 @@ export default class TripPresenter {
     createForm._restoreHandlers();
   }
 
-  #closeCreateForm() {
-    this.#isCreating = false;
-    this.#updateTripInfoAndRender();
-  }
-
   #handleNewEventClick() {
     if (this.#isCreating) {
       return;
     }
-    this.#closeAllEditForms();
+    this.#pointPresenters.forEach((presenter) => presenter.resetView());
     this.#isCreating = true;
     this.#currentSort = 'day';
     this.#filterModel.setFilter('MAJOR', FiltersPoint.EVERYTHING);
     this.#newEventButton.disabled = true;
-    this.#updateTripInfoAndRender();
-  }
-
-  #closeAllEditForms() {
-    this.#pointPresenters.forEach((presenter) => presenter.resetView());
+    this.#renderBoard();
   }
 }

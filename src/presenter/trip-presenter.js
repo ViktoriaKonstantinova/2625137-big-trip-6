@@ -244,7 +244,7 @@ export default class TripPresenter {
     }
     const updatedPresenter = this.#pointPresenters.get(updatedPoint.id);
     if (updatedPresenter) {
-      const fullPoint = this.#getFullPoints().find((p) => p.id === updatedPoint.id);
+      const fullPoint = this.#getFullPoints().find((point) => point.id === updatedPoint.id);
       const pointForUpdate = {
         ...fullPoint,
         offers: fullPoint.offers.map((offer) => typeof offer === 'object' ? offer.id : offer),

@@ -1,6 +1,7 @@
 import { render, replace, remove } from '../framework/render.js';
 import PointView from '../view/point-view.js';
 import EditFormView from '../view/edit-form-view.js';
+import { isEscapeKey } from '../utils/points-utils.js';
 
 export default class PointPresenter {
   #point = null;
@@ -135,7 +136,7 @@ export default class PointPresenter {
 
   #addEscHandler() {
     const onEscKeyDown = (evt) => {
-      if (evt.key === 'Escape' || evt.key === 'Esc') {
+      if (isEscapeKey(evt)) {
         evt.preventDefault();
         this.#closeEditForm();
         document.removeEventListener('keydown', onEscKeyDown);

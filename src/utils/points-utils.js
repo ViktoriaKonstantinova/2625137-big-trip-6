@@ -69,3 +69,7 @@ export function isActualPoint(point) {
   const now = dayjs();
   return dayjs(toDate(point.dateFrom)).isBefore(now) && dayjs(toDate(point.dateTo)).isAfter(now);
 }
+
+export function isEscapeKey(evt) {
+  return evt.key === 'Escape' || evt.key === 'Esc';
+}

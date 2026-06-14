@@ -2,6 +2,7 @@ import AbstractStatefulView from '../framework/view/abstract-stateful-view.js';
 import flatpickr from 'flatpickr';
 import 'flatpickr/dist/flatpickr.min.css';
 import { formatDate } from '../utils/points-utils.js';
+import { isEscapeKey } from '../utils/points-utils.js';
 
 const getEmptyPoint = () => ({
   id: null,
@@ -32,8 +33,8 @@ const createOffersHtml = (offers, selectedOffers) => offers.map((offer) => `
   </div>
 `).join('');
 
-const createDestinationPhotosHtml = (pictures) => pictures.map((pic) => `
-  <img class="event__photo" src="${pic.src}" alt="${pic.description}">
+const createDestinationPhotosHtml = (pictures) => pictures.map((picture) => `
+  <img class="event__photo" src="${picture.src}" alt="${picture.description}">
 `).join('');
 
 const createDestinationOptions = (destinations) => destinations.map((dest) => `
@@ -394,7 +395,7 @@ export default class CreateFormView extends AbstractStatefulView {
 
   #addEscHandler() {
     this.#onEscKeyDown = (evt) => {
-      if (evt.key === 'Escape' || evt.key === 'Esc') {
+      if (isEscapeKey(evt)) {
         evt.preventDefault();
         this.#onCancel();
       }
